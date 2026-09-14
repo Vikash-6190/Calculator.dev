@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculator</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      font-family: Arial, sans-serif;
+    }
+
+    .calculator {
+      width: 330px;
+      background: #222;
+      padding: 20px;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    }
+
+    .display {
+      width: 100%;
+      height: 80px;
+      margin-bottom: 15px;
+      padding: 15px;
+      border: none;
+      border-radius: 10px;
+      background: #111;
+      color: white;
+      text-align: right;
+      font-size: 35px;
+      outline: none;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    button {
+      height: 60px;
+      border: none;
+      border-radius: 12px;
+      font-size: 22px;
+      cursor: pointer;
+      background: #444;
+      color: white;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background: #666;
+      transform: scale(1.03);
+    }
+
+    button:active {
+      transform: scale(0.95);
+    }
+
+    .operator {
+      background: #ff9500;
+    }
+
+    .operator:hover {
+      background: #ffb340;
+    }
+
+    .clear {
+      background: #d9534f;
+    }
+
+    .equals {
+      background: #28a745;
+      grid-row: span 2;
+      height: 130px;
+    }
+
+    .zero {
+      grid-column: span 2;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="calculator">
+
+    <input
+      type="text"
+      id="display"
+      class="display"
+      value="0"
+      readonly
+    >
+
+    <div class="buttons">
+
+      <button class="clear" onclick="clearDisplay()">AC</button>
+      <button onclick="deleteLast()">⌫</button>
+      <button class="operator" onclick="chooseOperator('%')">%</button>
+      <button class="operator" onclick="chooseOperator('÷')">÷</button>
+
+      <button onclick="inputNumber('7')">7</button>
+      <button onclick="inputNumber('8')">8</button>
+      <button onclick="inputNumber('9')">9</button>
+      <button class="operator" onclick="chooseOperator('×')">×</button>
+
+      <button onclick="inputNumber('4')">4</button>
+      <button onclick="inputNumber('5')">5</button>
+      <button onclick="inputNumber('6')">6</button>
+      <button class="operator" onclick="chooseOperator('-')">−</button>
+
+      <button onclick="inputNumber('1')">1</button>
+      <button onclick="inputNumber('2')">2</button>
+      <button onclick="inputNumber('3')">3</button>
+      <button class="operator" onclick="chooseOperator('+')">+</button>
+
+      <button class="zero" onclick="inputNumber('0')">0</button>
+      <button onclick="inputDecimal()">.</button>
+      <button class="equals" onclick="calculate()">=</button>
+
+    </div>
+  </div>
+
+  <script>
+    const display = document.getElementById("display");
+    const OPERATORS = ["+", "-", "×", "÷", "%"];
+
+    // true once "=" has produced a result, so the next digit starts fresh
+    let justEvaluated = false;
+
+    function isOperator(ch) {
+      return OPERATORS.includes(ch);
+    }
+
+    function inputNumber(number) {
+      if (justEvaluated) {
+        display.value = "0";
+        justEvaluated = false;
+      }
+
+      if (display.value === "0") {
+        display.value = number;
+      } else {
+        display.value += number;
+      }
+    }
+
+    function inputDecimal() {
+      if (justEvaluated) {
+        display.value = "0";
+        justEvaluated = false;
+      }
+
+      // find the current (last) number segment being typed
+      const lastOpIndex = Math.max(...OPERATORS.map(op => display.value.lastIndexOf(op)));
+      const currentSegment = display.value.slice(lastOpIndex + 1);
+
+      if (!currentSegment.includes(".")) {
+        display.value += currentSegment === "" ? "0." : ".";
+      }
+    }
+
+    function chooseOperator(selectedOperator) {
+      if (justEvaluated) {
+        justEvaluated = false;
+      }
+
+      const lastChar = display.value.slice(-1);
+
+      if (isOperator(lastChar)) {
+        // swap the trailing operator instead of stacking two in a row
+        display.value = display.value.slice(0, -1) + selectedOperator;
+      } else if (display.value === "0" && selectedOperator === "-") {
+        // allow a leading minus for negative numbers
+        display.value = "-";
+      } else {
+        display.value += selectedOperator;
+      }
+    }
+
+    // Evaluate the expression respecting BODMAS: × ÷ % before + −
+    function evaluateExpression(expr) {
+      // Tokenize into numbers and operators — '-' is only ever a separate
+      // operator token here, never glued onto a number
+      let tokens = expr.match(/\d+\.?\d*|\.\d+|[+\-×÷%]/g);
+      if (!tokens || tokens.length === 0) return null;
+
+      // A leading '-' means a negative first number, e.g. "-5+10"
+      if (tokens[0] === "-" && tokens.length > 1) {
+        tokens = ["-" + tokens[1], ...tokens.slice(2)];
+      }
+
+      // Pass 1: resolve ×, ÷, % left to right
+      let pass1 = [tokens[0]];
+      for (let i = 1; i < tokens.length; i += 2) {
+        const op = tokens[i];
+        const nextVal = parseFloat(tokens[i + 1]);
+        if (nextVal === undefined || isNaN(nextVal)) continue;
+
+        if (op === "×" || op === "÷" || op === "%") {
+          const prev = parseFloat(pass1[pass1.length - 1]);
+          let result;
+          if (op === "×") result = prev * nextVal;
+          else if (op === "÷") {
+            if (nextVal === 0) throw new Error("DivByZero");
+            result = prev / nextVal;
+          } else result = prev % nextVal;
+          pass1[pass1.length - 1] = result;
+        } else {
+          pass1.push(op, tokens[i + 1]);
+        }
+      }
+
+      // Pass 2: resolve remaining +, − left to right
+      let result = parseFloat(pass1[0]);
+      for (let i = 1; i < pass1.length; i += 2) {
+        const op = pass1[i];
+        const val = parseFloat(pass1[i + 1]);
+        if (op === "+") result += val;
+        else if (op === "-") result -= val;
+      }
+
+      return result;
+    }
+
+    function calculate() {
+      let expr = display.value.trim();
+
+      // strip a trailing operator before evaluating (e.g. "12+5×")
+      while (expr.length > 0 && isOperator(expr.slice(-1))) {
+        expr = expr.slice(0, -1);
+      }
+
+      if (expr === "" || expr === "-") return;
+
+      try {
+        const result = evaluateExpression(expr);
+        if (result === null || isNaN(result)) return;
+
+        // trim floating point noise, keep up to 10 decimal places
+        display.value = Math.round(result * 1e10) / 1e10;
+      } catch (e) {
+        display.value = "Error";
+      }
+
+      justEvaluated = true;
+    }
+
+    function clearDisplay() {
+      display.value = "0";
+      justEvaluated = false;
+    }
+
+    function deleteLast() {
+      if (justEvaluated) {
+        clearDisplay();
+        return;
+      }
+      if (display.value.length > 1) {
+        display.value = display.value.slice(0, -1);
+      } else {
+        display.value = "0";
+      }
+    }
+
+    // Keyboard support
+    document.addEventListener("keydown", (event) => {
+
+      if (event.key >= "0" && event.key <= "9") {
+        inputNumber(event.key);
+      }
+
+      else if (event.key === ".") {
+        inputDecimal();
+      }
+
+      else if (event.key === "+") {
+        chooseOperator("+");
+      }
+
+      else if (event.key === "-") {
+        chooseOperator("-");
+      }
+
+      else if (event.key === "*") {
+        chooseOperator("×");
+      }
+
+      else if (event.key === "/") {
+        event.preventDefault();
+        chooseOperator("÷");
+      }
+
+      else if (event.key === "%") {
+        chooseOperator("%");
+      }
+ 
+      else if (event.key === "Enter" || event.key === "=") {
+        calculate();
+      }
+
+      else if (event.key === "Escape") {
+        clearDisplay();
+      }
+
+      else if (event.key === "Backspace") {
+        deleteLast();
+      }
+    });
+  </script>
+
+</body>
+</html>
